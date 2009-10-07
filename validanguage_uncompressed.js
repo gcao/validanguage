@@ -5,7 +5,7 @@
  * 
  * @namespace  Global validanguage object
  * @author     DrLongGhost
- * @version    0.9.9
+ * @version    1.0.0
  */
 var validanguage = {
 /**
@@ -18,7 +18,7 @@ useLibrary: 'none',
 /**
  * @private
  */
-version: '0.9.9',
+version: '1.0.0',
 
 /**
  * @namespace  validanguage.settings object
@@ -258,20 +258,31 @@ settings: {
     * Set this to empty to turn flashing off.
     * @default  '#FF6666'
     */
-    validationErrorColor : '#FF6666',
+    validationErrorColor: '#FF6666',
+    
+    /**
+    * If a field has already failed validation and it fails again, should the new
+    * failure trigger the onerror handlers? Set this to false to prevent a given
+    * field's onkeydown validation from retriggering with every keystroke. If
+    * retriggerErrors is set to false and a different validation function fails,
+    * ie, the error message should change from one error to another, the error WILL
+    * be triggered.
+    * @default  true
+    */
+    retriggerErrors: true,
     
     /**
     * Normal color of the textbox. The default is empty. Used in conjunction with validationErrorColor
     * to make the textboxes flash.
     * @default  ''
     */
-    normalTextboxColor : '',
+    normalTextboxColor: '',
     
     /**
     * Amount of time the text box flashes the validationErrorColor. The default is 100ms
     * @default  100
     */
-    timeDelay : 100,
+    timeDelay: 100,
     
     /**
     * Typing delay for the ontyping event. This is the amount of time between keystrokes
@@ -317,8 +328,8 @@ forms:                  {},
 formLookup:             {},  //hash table to map form element IDs to the ID of the parent form.
 ignoreTheseKeyCodes:    [8,37,38,39,40,46], //keycodes that are always permitted during keypress suppression
 requiredAlternatives:   [],  //hash table used to store requiredAlternatives associations
-supportedEvents:        ['blur','change','keypress','keyup','keydown','submit','click','typing'],
-supportedEventHandlers: ['onblur','onchange','onkeypress','onkeyup','onkeydown','onsubmit','onclick','ontyping'],
+supportedEvents:        ['blur','change','keypress','keyup','keydown','submit','click','typing','focus'],
+supportedEventHandlers: ['onblur','onchange','onkeypress','onkeyup','onkeydown','onsubmit','onclick','ontyping','onfocus'],
 typingDelay:            [],  //hash table to store ontyping timeouts
 vdLoaded:               false, //changed to true after populate() has completed
 
@@ -533,7 +544,7 @@ ajaxValidationWrapper: function( form, eventType ) {
             }
         }
     }
-},
+}, //close ajaxValidationWrapper
 
 /**
 * This function loads all the validanguage.toggle() rules which
@@ -769,7 +780,7 @@ getCaretPos: function(obj) {
 getComments: function(el) {
     if (!el) el = document.documentElement;
     var comments = new Array();
-    var length = el.childNodes.length;
+    var length = (el.childNodes) ? el.childNodes.length : 0;
     for (var c = 0; c < length; c++) {
         if (el.childNodes[c].nodeType == 8) {
             comments[comments.length] = el.childNodes[c];
@@ -979,27 +990,28 @@ isExpiredAjax: function (formFieldId, ajaxCounter) {
         }
     }
     return false;
-},
+}, //close isExpiredAjax
 
 /**
 * This function parses all comments in the current document, looking for
 * the comment-based API and converts any validanguage statements it
 * finds into the element/json-based API for further processing.
 * 
+* @param  {Object} Dom Node containing comments to be loaded
 * @param  {Array}  For konqueror, we pass this function an Array with all
 *                  the comments (retrieved via AJAX)
 *                  For all other browsers, konquerorComments is undefined and
 *                  we retrieve the comments normally via the DOM
 */
-loadCommentAPI: function( konquerorComments ) {
+loadCommentAPI: function( domNode, konquerorComments ) {
     var supportedSettings = ['mode','expression','suppress','onsubmit','onblur','onchange',
-        'onkeypress','onkeyup','onkeydown','onclick', 'ontyping',
+        'onkeypress','onkeyup','onkeydown','onclick', 'ontyping','onfocus',
         'errorMsg','onerror','onsuccess','focusOnError',
         'showAlert','required','requiredAlternatives',
         'maxlength','minlength','regex','field',
         'errorOnMatch','modifiers','transformations','validations'];
 
-    var allComments = (this.empty(konquerorComments)) ? this.getComments() : konquerorComments;
+    var allComments = (this.empty(konquerorComments)) ? this.getComments(domNode) : konquerorComments;
     var length = allComments.length;
     for (var j=0; j<length; j++) {
 
@@ -1096,11 +1108,22 @@ loadCommentAPI: function( konquerorComments ) {
  * This function parses the validanguage.el object to load all the
  * form-element-specific validation settings which the end user has defined
  * via the Object-based API
+ * 
+ * @param {String|Object} (Optional) If provided, this is either the DOM node
+ *    of a form, or a form's ID. Providing a form will limit the function
+ *    to loading validations for only elements in that form.
  */
-loadElAPI: function() {
+loadElAPI: function( form ) {
+    if (typeof form=='string') form = document.getElementById(form);
+    
     for( var elem in this.el ) {  //for each element....
-        //skip to the next if it's not an element ID
+        // Skip to the next if it's not an element ID
         try { if( typeof document.getElementById(elem) == undefined || this.empty(document.getElementById(elem)) ) continue; } catch(e) { continue; }
+        
+        // Skip if "form" was provided and this element doesn't belong to that form
+        if ((form!=null) && ((form.id!=elem) && (!form.elements[elem]))) {
+            continue;
+        }
         
         var Obj = document.getElementById(elem);
         var settings = validanguage.getFormSettings(elem);
@@ -1177,6 +1200,7 @@ loadElAPI: function() {
             expression = expression.replace('alphaLower','abcdefghijklmnopqrstuvwxyz');
             expression = expression.replace('alpha','abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ');
             expression = expression.replace('numeric','0123456789');
+            expression = expression.replace('special','`~!@#$%^&*()-_=+[{]}\\|;:\'",<.>/?');
             this.el[elem].characters.characterExpression = expression;
             
             var validanguageExpr = ';';
@@ -1283,6 +1307,32 @@ loadElAPI: function() {
 },
 
 /**
+ * This function loads a form and its settings into the
+ * global validanguage object so it can receive validation
+ * criteria. 
+ * @param {String|Object} form Node or ID of the form
+ */
+loadForm: function(form) {
+    if (typeof form=='string') form = document.getElementById(form);
+    var formName = (this.empty(form.id)) ? this.formCounter : form.id;
+    this.forms[formName] = { settings: this.settings };
+    
+    var allInputs = form.getElementsByTagName('input');
+    var allTextareas = form.getElementsByTagName('textarea');
+    var allSelect = form.getElementsByTagName('select');
+    var allObjects = this.concatCollection(allInputs, allTextareas);
+    var allObjects = this.concatCollection(allObjects, allSelect);
+    var radios = {}; // hash lookup to store radio buttons we've seen
+    
+    for (var k=allObjects.length-1; k>-1; k--) {
+        //iterate thru the array and store the id in our formLookup hash table
+        if (typeof(allObjects[k].id) != 'undefined' && !this.empty(allObjects[k].id)) {
+            this.formLookup[allObjects[k].id] = formName;
+        }
+    }
+}, //close loadForm
+
+/**
 * This function searches the passed subject and returns an Array of strings 
 * which are delimited by the characters passed to the function in the 
 * first 2 arguments.  Used to pull comments from the document source
@@ -1316,22 +1366,8 @@ populate: function(){
     **/
     var forms = document.getElementsByTagName('form');
     for (var i=0, j=forms.length; i<j; i++) {
-        var formName = (this.empty(forms[i].id)) ? i : forms[i].id;
-        this.forms[formName] = { settings: this.settings };
-        
-        var allInputs = forms[i].getElementsByTagName('input');
-        var allTextareas = forms[i].getElementsByTagName('textarea');
-        var allSelect = forms[i].getElementsByTagName('select');
-        var allObjects = this.concatCollection(allInputs, allTextareas);
-        var allObjects = this.concatCollection(allObjects, allSelect);
-        var radios = {}; // hash lookup to store radio buttons we've seen
-        
-        for (var k=allObjects.length-1; k>-1; k--) {
-            //iterate thru the array and store the id in our formLookup hash table
-            if (typeof(allObjects[k].id) != 'undefined' && !this.empty(allObjects[k].id)) {
-                this.formLookup[allObjects[k].id] = formName;
-            }
-        }
+        this.formCounter = i; // this supports forms with no Ids
+        this.loadForm(forms[i]);
     }
     
     if (this.browser == 'konqueror' && this.settings.loadCommentAPI == true) {
@@ -1339,7 +1375,7 @@ populate: function(){
             //prototype
             if (docText.responseText) docText = docText.responseText;
             var comments = validanguage.parseSubstring( '<!--', '-->', docText );
-            validanguage.loadCommentAPI( comments );
+            validanguage.loadCommentAPI( window.document, comments );
             if (validanguage.overloadFormSettings) validanguage.overloadFormSettings();
             if (validanguage.el && !validanguage.empty(validanguage.el)) {
                 validanguage.loadElAPI();
@@ -1371,6 +1407,38 @@ populate: function(){
     this.addEvent(window, 'unload', function() { delete validanguage; });
             
 }, //close populate
+
+/**
+ * This transformation function updates a div or span
+ * with the total number of characters remaining,
+ * based on a comparison between the number of characters
+ * the user has typed and the defined minLength and maxLength
+ * values for the field. See the demo page for an example.
+ */
+remainingChars: function() {
+    var div = document.getElementById(this.id+'_remaining');
+    var minLength = validanguage.el[this.id].minlength || 0;
+    var maxLength = validanguage.el[this.id].maxlength;
+    var length = this.value.length;
+    var remainingClass = ((length <= maxLength) && (length >= minLength)) ? 'vdLengthPassed' : 'vdLengthFailed';
+    div.innerHTML = '<span class="'+remainingClass+'">' + length + '</span> / ' + maxLength;
+}, //close remainingChars
+
+/**
+ * This function removes all references to a form and its elements from
+ * the global validanguage object
+ * @param {String} Id of the form to remove
+ */
+removeForm: function (formId) {
+    // Remove any related form fields from validanguage.el
+    for (var elem in this.formLookup) {
+        if (typeof elem == 'string' && this.formLookup[elem]==formId) {
+            delete this.el[elem];
+            delete this.formLookup[elem];
+        }
+    }
+    delete this.forms[formId];
+}, //close removeForm
 
 /**
 * This function is used to deactivate a previously loaded validation.
@@ -1480,7 +1548,7 @@ resolveArray: function (args, returnType, ignoreCommas) {
         return returnArray;
     }
     return false;      
-},
+}, //close resolveArray
 
 /**
  * Sets the caret at a specified position on an object
@@ -1562,7 +1630,7 @@ setValidationStatus: function( id, returnStatus, type, errorMsg ) {
         if (this.debug) console.log('Throwing Event');
         this.validationWrapper(id, type);
     }
-},
+}, //close setValidationStatus
 
 /**
 * This function shows the error messages for failed validations by dynamically
@@ -1576,7 +1644,7 @@ showError: function( errorMsg ) {
          var formField = document.getElementById(this.id);
          var errorDiv = document.createElement('DIV');
          validanguage.insertAfter( errorDiv, formField );
-         var innerHTML = '<span id="'+ this.id + settings.errorMsgSpanSuffix+'">&nbsp;</span>';
+         var innerHTML = '<br/><span id="'+ this.id + settings.errorMsgSpanSuffix+'">&nbsp;</span>';
          errorDiv.innerHTML = innerHTML;
          errorDiv.className = settings.onErrorClassName;            
          var errorDisplay = document.getElementById(this.id + settings.errorMsgSpanSuffix);            
@@ -2103,7 +2171,7 @@ validateEmail: function( text ) {
     if(! text.match(/^([a-zA-Z0-9]+[a-zA-Z0-9._%-]*@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,4})$/) )
        return false;
     else return true;
-},
+}, //close validateEmail
 
 /**
 * Calls the validationWrapper function on the passed form ID
@@ -2118,7 +2186,7 @@ validateForm: function( formId ) {
     else if (typeof formId=='string') form = document.getElementById(formId);
     else form = formId;
     return this.validationWrapper( form, 'validateForm' );
-},
+}, //close validateForm
 
 /**
  * Validates that a field contains a valid IPv4 address
@@ -2200,7 +2268,7 @@ validateMaxlength: function( text, max ) {
     if(text.length > maxlength)
         return false;
     else return true;
-},
+}, //close validateMaxlength
 
 /**
 * Validates that a field is greater than minlength characters long
@@ -2212,7 +2280,7 @@ validateMinlength: function( text, min ) {
     if(text.length < minlength)
        return false;
     else return true;
-},
+}, //close validateMinlength
 
 /**
 * Validates that a field is numeric
@@ -2222,29 +2290,106 @@ validateNumeric: function( text ) {
     if(! text.match(/^\d+$/) )
         return false;
     else return true;
-},
+}, //close validateNumeric
+
+/**
+* Validates whether a password is adequately secure.
+* Additionally, this function can display a password
+* strength meter, based on the same, or different,
+* criteria than whether or not it validates.
+* With default arguments, a password must contain at
+* least one letter and one number and be 6 characters
+* long, but you can easily make the requirements more
+* stringent.<br/>
+* @param {String} text
+* @param {Object} Argument object. The following options
+* are supported:<br/>
+*   args.minLength: Minlength for the password<br/>
+*   args.minStrength: Minimum strength for the password
+*     to validate. This is a number from 1 to 4 to indicate
+*     how many character types it must have.<br/>
+*   args.mustMatch: Array of character types which password
+*     must have to validate. For example, to require all
+*     4 you would use args.mustMatch = ['hasUpper','hasLower',
+*     'hasDigit','hasSpecial']<br/>
+*   args.strong: Used for password meter. Array of numbers
+*     determining what qualifies as a "strong" password.
+*     For example: args.strong = [4] // All 4 char types<br/>
+*   args.medium: Used for password meter. Array of numbers
+*     determining what qualifies as a "medium" password.
+*     For example: args.medium = [2,3] // 2 or 3 char types
+*     If a password doesn't qualify as strong or medium, then
+*     it defaults to weak.<br/>
+*/
+validatePasswordStrength: function(text, args) {
+    if (!args) args = {};
+    var minLength = args.minLength || 6;
+    var minStrength = args.minStrength || 2;
+    var strong = args.strong || [4];
+    var medium = args.medium || [2,3];
+    var mustMatch = args.mustMatch || ['hasDigit'];
+    
+    var hasDigit = text.match(/\d/);
+    var hasUpper = text.match(/[A-Z]/);
+    var hasLower = text.match(/[a-z]/);
+    var hasSpecial = text.match(/[`|~|!|@|#|\$|%|\^|&|\*|\(|\)|_|-|+|=|\{|\[|\}|\]|\\|\|]|;|:|\'|\"|\,|\<|\.|\>|\/|\?/);
+    
+    var strength = 0;
+    if (hasDigit) strength++;
+    if (hasUpper) strength++;
+    if (hasLower) strength++;
+    if (hasSpecial) strength++;    
+    if (text.length < minLength) strength = 0;
+    
+    var ps = document.getElementById('passwordStrength');
+    if (ps) {
+        if (validanguage.inArray(strength, strong)) {
+            var strengthLevel = 'Strong';
+        } else if (validanguage.inArray(strength, medium)) {
+            var strengthLevel = 'Medium';
+        } else {
+            var strengthLevel = 'Weak';
+        }
+        var msg = '<span class="passwordStrengthMsg">Password Strength: ' + strengthLevel + '</span>';
+        msg += '<br/><div class="passwordClass"><div class="passwordClass' + strengthLevel + '">&nbsp;</div></div><br/>';
+        ps.innerHTML = msg;
+    }
+    
+    for (var i=mustMatch.length-1; i>-1; i--) {
+        eval('if (!'+mustMatch[i]+') strength=0;');
+    }
+    
+    if (strength >= minStrength) {
+        return true;
+    } else {
+        return false;
+    }
+}, //close validatePasswordStrength
 
 /**
 * Validates the element against a user-defined regex stored in
-* validanguage.el[id].regex
+* validanguage.el[id].regex. Modifiers are supported by supplying
+* them in obj within the regex, or, *if obj is a string*, you can
+* pass the modifiers in obj.modifiers.
 * 
 * @param {string} text
-* @param {object} optional object containing regex settings
+* @param {object} optional object containing regex settings.
+*   Supports "errorOnMatch" and "modifiers"
 */
 validateRegex: function( text, obj ) {
     var id = this.id;
     var regexObj = (validanguage.empty(obj)) ? validanguage.el[id].regex : obj;
     if(typeof regexObj.modifiers=='undefined') regexObj.modifiers='';
     if(typeof regexObj.errorOnMatch=='undefined') regexObj.errorOnMatch=false;
-    var myreg = (typeof regexObj.expression=='string') ? new RegExp(regexObj.expression) : regexObj.expression;
-    var thisMatch = myreg.exec(text, regexObj.modifiers);
+    var myreg = (typeof regexObj.expression=='string') ? new RegExp(regexObj.expression, regexObj.modifiers) : regexObj.expression;
+    var thisMatch = myreg.exec(text);
     if (thisMatch == null) {  //no match
         var returnStatus = (regexObj.errorOnMatch==false||regexObj.errorOnMatch=='false') ? false : true;
     } else {                  //match
         var returnStatus = (regexObj.errorOnMatch==false||regexObj.errorOnMatch=='false') ? true : false;         
     }
     return returnStatus;
-},
+}, //close validateRegex
 
 /***
 * Validates whether or not an element has been filled out,
@@ -2416,16 +2561,6 @@ validateURL: function( text ) {
 },
 
 /**
-* DEPRECATED - Please use validateDate() instead as validateUSDate
-* will be removed in the future. validateDate() defaults to MM/DD/YYYY
-* when called without any additional arguments.
-* @param {string} text
-*/
-validateUSDate: function( text ) {      
-    return validanguage.validateDate(text);
-},
-
-/**
  * Validates that a US Phone number is entered
  * 
  * @param {string} text
@@ -2483,6 +2618,7 @@ validationWrapper: function(e, customEvent) {
         // validate form event
         var $this = e;
         var form = validanguage.whichFormAmI($this);
+        var id = form;
         var type = 'submit';
     } else {
         // standard event handlers
@@ -2655,7 +2791,7 @@ validationWrapper: function(e, customEvent) {
 
         //Call onsubmit transformations
         var transformation = (validanguage.el[form] &&  validanguage.el[form].onsubmit) ? validanguage.el[form].onsubmit : [];
-        if (typeof transformation == 'string') transformation = [ transformation ];
+        if (typeof transformation == 'string' || typeof transformation == 'function') transformation = [ transformation ];
         for (var n=transformation.length-1; n>-1; n--) {
            var transformations = validanguage.resolveArray(transformation[n],'function');
            for (var o=transformations.length-1; o>-1; o--) {
@@ -2753,8 +2889,12 @@ validationWrapper: function(e, customEvent) {
                             var result = (validOptionalField || funcs[m].call($this, $this.value));
                         }
                         
-                        if (result == false) 
+                        if (result == false) {
+                            // Record lastFailed1 and 2
+                            if (validanguage.el[id].lastFailed1) validanguage.el[id].lastFailed2 = validanguage.el[id].lastFailed1;
+                            validanguage.el[id].lastFailed1 = funcs[m].toString();
                             break outerLoop;
+                        }
                     }
                 }
                 if (validationCounter == undefined) return true; //exit early if all validations have been removed
@@ -2780,28 +2920,35 @@ validationWrapper: function(e, customEvent) {
         
         //handle the result
         if( result == true ) {
-           var onsuccess = validanguage.getElSetting('onsuccess',id,validation);
-           successHandlers = validanguage.resolveArray(onsuccess,'function');
-           for (var m=successHandlers.length-1; m>-1; m--) {
+            validanguage.el[id].lastFailed1 = {};
+            var onsuccess = validanguage.getElSetting('onsuccess',id,validation);
+            successHandlers = validanguage.resolveArray(onsuccess,'function');
+            for (var m=successHandlers.length-1; m>-1; m--) {
                successHandlers[m].call($this);
-           }   
-           return true;
+            }   
+            return true;
         } else {
-           var focusOnerror = validanguage.getElSetting('focusOnerror',id,validation);
-           var errorMsg = (failedValidations[id] && failedValidations[id].errorMsg) ? failedValidations[id].errorMsg : validanguage.getElSetting('errorMsg',id,validation);
-           var onerror = (failedValidations[id] && failedValidations[id].onerror) ? failedValidations[id].onerror : validanguage.getElSetting('onerror',id,validation);
-           errorHandlers = validanguage.resolveArray(onerror,'function');
-           for (var m=errorHandlers.length-1; m>-1; m--) {
-               errorHandlers[m].call($this, errorMsg);
-           }
-
-           var focusOnerror = validanguage.getElSetting('focusOnerror',id,validation);
-           if( focusOnerror==true ) $this.focus();
-
-           var showAlert = validanguage.getElSetting('showAlert',id,validation);
-           if( showAlert ) alert(errorMsg);
-
-           return false;
+            var retriggerErrors = validanguage.getElSetting('retriggerErrors',id,validation);
+            var failedFieldClassName = validanguage.getElSetting('failedFieldClassName',id,validation);
+            
+            // Trigger errors if retriggerErrors is on, or if the last 2 failures were different
+            if (retriggerErrors || (validanguage.el[id].lastFailed1!=validanguage.el[id].lastFailed2)) {
+            
+                var focusOnerror = validanguage.getElSetting('focusOnerror', id, validation);
+                var errorMsg = (failedValidations[id] && failedValidations[id].errorMsg) ? failedValidations[id].errorMsg : validanguage.getElSetting('errorMsg', id, validation);
+                var onerror = (failedValidations[id] && failedValidations[id].onerror) ? failedValidations[id].onerror : validanguage.getElSetting('onerror', id, validation);
+                errorHandlers = validanguage.resolveArray(onerror, 'function');
+                for (var m = errorHandlers.length - 1; m > -1; m--) {
+                    errorHandlers[m].call($this, errorMsg);
+                }
+                
+                var focusOnerror = validanguage.getElSetting('focusOnerror', id, validation);
+                if (focusOnerror == true) $this.focus();
+                
+                var showAlert = validanguage.getElSetting('showAlert', id, validation);
+                if (showAlert) alert(errorMsg);
+            }
+            return false;
         }      
     }
 },

@@ -1,4 +1,4 @@
-Validanguage Overview -- version 0.9.9
+Validanguage Overview -- version 1.0.0
 
 This REAMDE is outdated! To view an updated, online version of this documentation, formatted for easy readability, visit:
 http://www.drlongghost.com/wordpress/?page_id=16
