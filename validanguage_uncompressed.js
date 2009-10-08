@@ -1644,7 +1644,7 @@ showError: function( errorMsg ) {
          var formField = document.getElementById(this.id);
          var errorDiv = document.createElement('DIV');
          validanguage.insertAfter( errorDiv, formField );
-         var innerHTML = '<br/><span id="'+ this.id + settings.errorMsgSpanSuffix+'">&nbsp;</span>';
+         var innerHTML = '<span id="'+ this.id + settings.errorMsgSpanSuffix+'">&nbsp;</span>';
          errorDiv.innerHTML = innerHTML;
          errorDiv.className = settings.onErrorClassName;            
          var errorDisplay = document.getElementById(this.id + settings.errorMsgSpanSuffix);            
